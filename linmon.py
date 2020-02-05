@@ -44,6 +44,8 @@ attrs = {
 sens_re = ")|(?:".join(inputs.keys())
 sens_re = "((?:%s))([0-9]+)_input$" % sens_re
 
+root_dir = "/sys/class/hwmon"
+
 sensors = {}
 
 
@@ -86,17 +88,19 @@ def readsensor(filepath, sens_type, sens_num, suffix="_input"):
 
 
 def collect():
-    for subdir, _, files in os.walk("/sys"):
-        for fname in files:
-            sensor = re.search(sens_re, fname)
-            suffix = "_input"
-            if not sensor:
-                sensor = re.search("((?:pwm))([0-9]+)$", fname)
-                suffix = ""
-            if sensor:
-                sens_type = sensor.group(1)
-                sens_num = sensor.group(2)
-                readsensor(subdir, sens_type, sens_num, suffix)
+    for hwmon in os.listdir(root_dir):
+        hwmon = os.path.abspath(os.path.join(root_dir, os.readlink(os.path.join(root_dir, hwmon))))
+        for subdir, _, files in os.walk(hwmon):
+            for fname in files:
+                sensor = re.search(sens_re, fname)
+                suffix = "_input"
+                if not sensor:
+                    sensor = re.search("((?:pwm))([0-9]+)$", fname)
+                    suffix = ""
+                if sensor:
+                    sens_type = sensor.group(1)
+                    sens_num = sensor.group(2)
+                    readsensor(subdir, sens_type, sens_num, suffix)
 
 
 def report():
