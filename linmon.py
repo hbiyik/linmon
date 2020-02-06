@@ -15,11 +15,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  """
-from __future__ import print_function
-
 import os
 import re
 from operator import itemgetter
+import sys
+import curses
+import time
+
+if len(sys.argv) > 1 and sys.argv[1].isdigit():
+    updatetime = float(sys.argv[1])
+else:
+    updatetime = 0
 
 
 inputs = {
@@ -104,12 +110,13 @@ def collect():
 
 
 def report():
+    log = ""
     for source in sensors:
         source_name = parsefile(os.path.join(source, "name"))
         if source_name:
-            print("%s (%s)" % (source_name, source))
+            log += "%s (%s)\n" % (source_name, source)
         else:
-            print("%s:" % source)
+            log += "%s:\n" % source
         for stype, snum, sval, sattrs in sorted(sensors[source], key=itemgetter(0, 1)):
             scfg = inputs[stype]
             sname = "%s%s" % (stype, snum)
@@ -130,8 +137,29 @@ def report():
                                                 scfg["unit"]))
             if len(sattr_txts):
                 sval += " (%s)" % ", ".join(sattr_txts)
-            print("    %s: %s" % (sname, sval))
+            log += "    %s: %s\n" % (sname, sval)
+    return log
 
 
-collect()
-report()
+screen = curses.initscr()
+screen.erase()
+screen.refresh()
+try:
+    while True:
+        y, x = screen.getmaxyx()
+        screen.resize(y, x)
+        t1 = time.time()
+        sensors = {}
+        collect()
+        screen.insstr(1, 0, report())
+        runtime = time.time() - t1
+        screen.refresh()
+        if runtime < updatetime:
+            time.sleep(updatetime - runtime)
+        screen.addstr(0, 0, "Refresh Time: %.3f seconds\n" % (time.time() - t1))
+        screen.refresh()
+finally:
+    curses.nocbreak()
+    screen.keypad(0)
+    curses.echo()
+    curses.endwin()
