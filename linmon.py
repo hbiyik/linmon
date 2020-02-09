@@ -22,46 +22,47 @@ import sys
 import curses
 import time
 
+updatetime = None
 if len(sys.argv) > 1 and sys.argv[1].isdigit():
     updatetime = float(sys.argv[1])
-else:
-    updatetime = 0
 
 
 inputs = {
-    "in": {"unit": "V", "factor": 1000},
-    "curr": {"unit": "A", "factor": 1000},
-    "fan": {"unit": "RPM", "factor": 1},
-    "temp": {"unit": "C", "factor": 1000},
-    "power": {"unit": "W", "factor": 1000000},
-    "pwm": {"unit": "%", "factor": 2.55},
+    "in": {"unit": "V", "factor": 1000, "suffix": "_input", "dtype": float},
+    "curr": {"unit": "A", "factor": 1000, "suffix": "_input", "dtype": float},
+    "fan": {"unit": "RPM", "factor": 1, "suffix": "_input", "dtype": float},
+    "temp": {"unit": "C", "factor": 1000, "suffix": "_input", "dtype": float},
+    "power": {"unit": "W", "factor": 1000000, "suffix": "_input", "dtype": float},
+    "pwm": {"unit": "%", "factor": 2.55, "suffix": "", "dtype": float},
+    "intrusion": {"unit": "", "factor": None, "suffix": "_alarm", "dtype": bool},
 }
 
-attrs = {
-    "min": "float",
-    "max": "float",
-    "crit": "float",
-    "crit_alarm": "float",
-    "beep": "float",
-    "alarm": "float",
-    "label": "str"
-    }
+attrs = ["min", "max", "crit", "crit_alarm", "beep", "alarm", "label", "offset"]
 
-sens_re = ")|(?:".join(inputs.keys())
-sens_re = "((?:%s))([0-9]+)_input$" % sens_re
+hwnames = {}
 
 root_dir = "/sys/class/hwmon"
 
 sensors = {}
 
+pciids = []
 
-def parsefile(fpath):
+
+def init():
+    for p in ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.ids"):
+        try:
+            pciids.append(open(p).read())
+        except Exception:
+            pass
+
+
+def parsefile(fpath, callback=float):
     if os.path.exists(fpath):
         try:
             with open(fpath) as f:
                 data = f.read().replace("\n", "")
                 try:
-                    return float(data)
+                    return callback(data)
                 except Exception:
                     return data
         except Exception:
@@ -87,7 +88,7 @@ def attributes(file_path, sensor_type, sensor_num):
 def readsensor(filepath, sens_type, sens_num, suffix="_input"):
     sensfile = os.path.join(filepath, sens_type + sens_num + suffix)
     if sens_type in inputs:
-        sens_val = parsefile(sensfile)
+        sens_val = parsefile(sensfile, inputs[sens_type]["dtype"])
         if sens_val is not None:
             sens_attrs = attributes(filepath, sens_type, sens_num)
             addsensor(filepath, sens_type, sens_num, sens_val, sens_attrs)
@@ -98,15 +99,32 @@ def collect():
         hwmon = os.path.abspath(os.path.join(root_dir, os.readlink(os.path.join(root_dir, hwmon))))
         for subdir, _, files in os.walk(hwmon):
             for fname in files:
-                sensor = re.search(sens_re, fname)
-                suffix = "_input"
-                if not sensor:
-                    sensor = re.search("((?:pwm))([0-9]+)$", fname)
-                    suffix = ""
-                if sensor:
-                    sens_type = sensor.group(1)
-                    sens_num = sensor.group(2)
-                    readsensor(subdir, sens_type, sens_num, suffix)
+                for sens_type in inputs:
+                    suffix = inputs[sens_type]["suffix"]
+                    sensor = re.search("%s([0-9]+)%s$" % (sens_type, suffix), fname)
+                    if sensor:
+                        sens_num = sensor.group(1)
+                        readsensor(subdir, sens_type, sens_num, suffix)
+                        break
+
+
+def hwname(source):
+    if source in hwnames:
+        return hwnames[source]
+    ids = []
+    for path in [os.path.join(source, "device", "vendor"), os.path.join(source, "device", "device")]:
+        pid = parsefile(path)
+        if pid:
+            ids.append(pid.replace("0x", ""))
+
+    if len(ids) == 2:
+        for pciid in pciids:
+            rgx = "\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (ids[0], ids[1])
+            match = re.search(rgx, pciid, re.DOTALL)
+            if match:
+                hwnames[source] = "%s:%s" % (match.group(1), match.group(2))
+                return hwnames[source]
+        hwnames[source] = None
 
 
 def report():
@@ -117,21 +135,23 @@ def report():
             log += "%s (%s)\n" % (source_name, source)
         else:
             log += "%s:\n" % source
+        if hwname(source):
+            log += "%s:\n" % hwname(source)
         for stype, snum, sval, sattrs in sorted(sensors[source], key=itemgetter(0, 1)):
             scfg = inputs[stype]
             sname = "%s%s" % (stype, snum)
-            if stype == "pwm":
-                sval = "%.2f%s (%i) " % (sval / scfg["factor"], scfg["unit"], sval)
-            else:
-                sval = "%.2f%s" % (sval / scfg["factor"], scfg["unit"])
+            if inputs[stype]["dtype"] in [int, float]:
+                sval = "%.2f" % (sval / scfg["factor"])
+            sval = "%s%s" % (sval, scfg["unit"])
             sattr_txts = []
             for sattr in sattrs:
-                sattr_val = sattrs[sattr]
                 if sattr == "label":
-                    sname = "%s (%s)" % (sname, sattr_val)
+                    sname = "%s (%s)" % (sname, sattrs[sattr])
                     continue
-                elif attrs[sattr] == "float":
-                    sattr_val = "%.2f" % (sattr_val / scfg["factor"])
+                if inputs[stype]["dtype"] in [int, float]:
+                    sattr_val = "%.2f" % (sattrs[sattr] / scfg["factor"])
+                else:
+                    sattr_val = sattrs[sattr]
                 sattr_txts.append("%s: %s%s" % (sattr,
                                                 sattr_val,
                                                 scfg["unit"]))
@@ -141,25 +161,31 @@ def report():
     return log
 
 
-screen = curses.initscr()
-screen.erase()
-screen.refresh()
-try:
-    while True:
-        y, x = screen.getmaxyx()
-        screen.resize(y, x)
-        t1 = time.time()
-        sensors = {}
-        collect()
-        screen.insstr(1, 0, report())
-        runtime = time.time() - t1
-        screen.refresh()
-        if runtime < updatetime:
-            time.sleep(updatetime - runtime)
-        screen.addstr(0, 0, "Refresh Time: %.3f seconds\n" % (time.time() - t1))
-        screen.refresh()
-finally:
-    curses.nocbreak()
-    screen.keypad(0)
-    curses.echo()
-    curses.endwin()
+init()
+
+if updatetime is not None:
+    screen = curses.initscr()
+    screen.erase()
+    screen.refresh()
+    try:
+        while True:
+            y, x = screen.getmaxyx()
+            screen.resize(y, x)
+            t1 = time.time()
+            sensors = {}
+            collect()
+            screen.insstr(1, 0, report())
+            runtime = time.time() - t1
+            screen.refresh()
+            if runtime < updatetime:
+                time.sleep(updatetime - runtime)
+            screen.addstr(0, 0, "Refresh Time: %.3f seconds\n" % (time.time() - t1))
+            screen.refresh()
+    finally:
+        curses.nocbreak()
+        screen.keypad(0)
+        curses.echo()
+        curses.endwin()
+else:
+    collect()
+    sys.stdout.write(report())
