@@ -33,11 +33,13 @@ inputs = {
     "fan": {"unit": "RPM", "factor": 1, "suffix": "_input", "dtype": float},
     "temp": {"unit": "C", "factor": 1000, "suffix": "_input", "dtype": float},
     "power": {"unit": "W", "factor": 1000000, "suffix": "_input", "dtype": float},
+    "power": {"unit": "W", "factor": 100000, "suffix": "_average", "dtype": float},
+    "freq": {"unit": "Mhz", "factor": 100000, "suffix": "_input", "dtype": float},
     "pwm": {"unit": "%", "factor": 2.55, "suffix": "", "dtype": float},
     "intrusion": {"unit": "", "factor": None, "suffix": "_alarm", "dtype": bool},
 }
 
-attrs = ["min", "max", "crit", "crit_alarm", "beep", "alarm", "label", "offset"]
+attrs = ["min", "max", "crit", "crit_alarm", "beep", "alarm", "label", "offset", "cap", "cap_max", "cap_min"]
 
 hwnames = {}
 
