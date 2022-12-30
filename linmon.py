@@ -27,7 +27,7 @@ if len(sys.argv) > 1 and sys.argv[1].isdigit():
     updatetime = float(sys.argv[1])
 
 
-inputs = {
+hwmon_inputs = {
     "in": {"unit": "V", "factor": 1000, "suffix": "_input", "dtype": float},
     "curr": {"unit": "A", "factor": 1000, "suffix": "_input", "dtype": float},
     "fan": {"unit": "RPM", "factor": 1, "suffix": "_input", "dtype": float},
@@ -39,15 +39,21 @@ inputs = {
     "intrusion": {"unit": "", "factor": None, "suffix": "_alarm", "dtype": bool},
 }
 
-attrs = ["min", "max", "crit", "crit_alarm", "beep", "alarm", "label", "offset", "cap", "cap_max", "cap_min"]
+reg_inputs = {"voltage": {"unit": "V", "factor": 1000000, "dtype":float},
+              "current": {"unit": "A", "factor": 1000000, "dtype":float}}
+ 
 
+hwmon_attrs = ["min", "max", "crit", "crit_alarm", "beep", "alarm", "label", "offset", "cap", "cap_max", "cap_min", "requested"]
+reg_props = ["status", "state", "num_users"]
 hwnames = {}
 
-root_dir = "/sys/class/hwmon"
+hwmon_dir = "/sys/class/hwmon"
+regulator_dir = "/sys/class/regulator"
 
 sensors = {}
-
 pciids = []
+
+REG_DEVNAME = "regulators"
 
 
 def init():
@@ -71,15 +77,15 @@ def parsefile(fpath, callback=float):
             pass
 
 
-def addsensor(source, sens_type, sens_num, sens_val, sens_attrs):
-    if source not in sensors:
-        sensors[source] = []
-    sensors[source].append((sens_type, sens_num, sens_val, sens_attrs))
+def addsensor(devname, sens_type, sens_num, sens_val, sens_attrs, reg_type=None):
+    if devname not in sensors:
+        sensors[devname] = []
+    sensors[devname].append((sens_type, sens_num, sens_val, sens_attrs, reg_type))
 
 
 def attributes(file_path, sensor_type, sensor_num):
     sens_attrs = {}
-    for sens_attr in attrs:
+    for sens_attr in hwmon_attrs:
         attr_path = os.path.join(file_path, sensor_type + sensor_num + "_" + sens_attr)
         attr_val = parsefile(attr_path)
         if attr_val is not None:
@@ -87,27 +93,68 @@ def attributes(file_path, sensor_type, sensor_num):
     return sens_attrs
 
 
-def readsensor(filepath, sens_type, sens_num, suffix="_input"):
+def readsensors(filepath, sens_type, sens_num, suffix="_input"):
     sensfile = os.path.join(filepath, sens_type + sens_num + suffix)
-    if sens_type in inputs:
-        sens_val = parsefile(sensfile, inputs[sens_type]["dtype"])
+    if sens_type in hwmon_inputs:
+        sens_val = parsefile(sensfile, hwmon_inputs[sens_type]["dtype"])
         if sens_val is not None:
             sens_attrs = attributes(filepath, sens_type, sens_num)
-            addsensor(filepath, sens_type, sens_num, sens_val, sens_attrs)
+            source_name = parsefile(os.path.join(filepath, "name"))
+            if source_name:
+                devname = "%s (%s)" % (source_name, filepath)
+            else:
+                devname = filepath
+            if hwname(filepath):
+                devname = hwname(filepath)
+            addsensor(devname, sens_type, sens_num, sens_val, sens_attrs)
 
+
+def readregulators():
+    for subdir, _fname in iterdirs(regulator_dir):
+        regtype = parsefile(os.path.join(subdir, "type"), str)
+        if regtype:
+            attrs = {}
+            dataname = "microamps" if regtype == "current" else "microvolts"
+            regval = parsefile(os.path.join(subdir, dataname), int)
+            if not regval:
+                continue
+            for regattr in hwmon_attrs:
+                regattrval = parsefile(os.path.join(subdir, regattr + "_" + dataname), int)
+                if regattrval:
+                    attrs[regattr] = regattrval
+            for regprop in reg_props:
+                regpropval = parsefile(os.path.join(subdir, regprop), str)
+                if regpropval:
+                    attrs[regprop] = regpropval
+            uevent = parsefile(os.path.join(os.path.join(subdir, "uevent")), str)
+            devname = re.search("OF_FULLNAME=(.+?)OF_COMPATIBLE", uevent)
+            devname = devname.group(1) if devname is not None else subdir
+            devname = devname.split("/")[-1]
+            regname = parsefile(os.path.join(os.path.join(subdir, "name")), str)
+            if regname:
+                regname = "%s (%s)" % (devname, regname)
+            else:
+                regname = devname
+            addsensor(REG_DEVNAME, regname, "", regval, attrs, regtype)
+    
+
+def iterdirs(rootdir):
+    for _root in os.listdir(rootdir):
+        classdir = os.path.abspath(os.path.join(hwmon_dir, os.readlink(os.path.join(rootdir, _root))))
+        for subdir, _, files in os.walk(classdir):
+            yield subdir, files
 
 def collect():
-    for hwmon in os.listdir(root_dir):
-        hwmon = os.path.abspath(os.path.join(root_dir, os.readlink(os.path.join(root_dir, hwmon))))
-        for subdir, _, files in os.walk(hwmon):
-            for fname in files:
-                for sens_type in inputs:
-                    suffix = inputs[sens_type]["suffix"]
-                    sensor = re.search("%s([0-9]+)%s$" % (sens_type, suffix), fname)
-                    if sensor:
-                        sens_num = sensor.group(1)
-                        readsensor(subdir, sens_type, sens_num, suffix)
-                        break
+    for subdir, files in iterdirs(hwmon_dir):
+        for fname in files:
+            for sens_type in hwmon_inputs:
+                suffix = hwmon_inputs[sens_type]["suffix"]
+                sensor = re.search("%s([0-9]+)%s$" % (sens_type, suffix), fname)
+                if sensor:
+                    sens_num = sensor.group(1)
+                    readsensors(subdir, sens_type, sens_num, suffix)
+                    break
+    readregulators()
 
 
 def hwname(source):
@@ -131,32 +178,37 @@ def hwname(source):
 
 def report():
     log = ""
-    for source in sensors:
-        source_name = parsefile(os.path.join(source, "name"))
-        if source_name:
-            log += "%s (%s)\n" % (source_name, source)
-        else:
-            log += "%s:\n" % source
-        if hwname(source):
-            log += "%s:\n" % hwname(source)
-        for stype, snum, sval, sattrs in sorted(sensors[source], key=itemgetter(0, 1)):
-            scfg = inputs[stype]
+    for source in sorted(sensors):
+        log += "%s\n" % source
+        for stype, snum, sval, sattrs, regtype in sorted(sensors[source], key=itemgetter(0, 0)):
+            if regtype is None:
+                dtype = hwmon_inputs[stype]["dtype"]
+                dfactor = hwmon_inputs[stype]["factor"]
+                dunit = hwmon_inputs[stype]["unit"]
+            else:
+                dtype = float
+                dfactor = reg_inputs[regtype]["factor"]
+                dunit = reg_inputs[regtype]["unit"]
             sname = "%s%s" % (stype, snum)
-            if inputs[stype]["dtype"] in [int, float]:
-                sval = "%.2f" % (sval / scfg["factor"])
-            sval = "%s%s" % (sval, scfg["unit"])
+            if dtype in [int, float]:
+                sval = "%.2f" % (sval / dfactor)
+            sval = "%s%s" % (sval, dunit)
             sattr_txts = []
             for sattr in sattrs:
                 if sattr == "label":
                     sname = "%s (%s)" % (sname, sattrs[sattr])
                     continue
-                if inputs[stype]["dtype"] in [int, float]:
-                    sattr_val = "%.2f" % (sattrs[sattr] / scfg["factor"])
+                elif sattr in reg_props:
+                    sattr_txts.append("%s: %s" % (sattr, sattrs[sattr]))
+                    continue
+
+                if dtype in [int, float]:
+                    sattr_val = "%.2f" % (sattrs[sattr] / dfactor)
                 else:
                     sattr_val = sattrs[sattr]
                 sattr_txts.append("%s: %s%s" % (sattr,
                                                 sattr_val,
-                                                scfg["unit"]))
+                                                dunit))
             if len(sattr_txts):
                 sval += " (%s)" % ", ".join(sattr_txts)
             log += "    %s: %s\n" % (sname, sval)
