@@ -91,9 +91,7 @@ class Reg_Sensor(Sensor):
 
     def __init__(self, path, dataname):
         self.path = path
-        uevent = tools.parsefile(os.path.join(self.path, "uevent"))
-        devname = re.search("OF_FULLNAME=(.+?)OF_COMPATIBLE", uevent)
-        devname = devname.group(1) if devname is not None else self.path
+        devname = tools.parseuevent_name(self.path) or self.path
         self.unit = "A" if dataname == "microamps" else "V"
         self.scale = 1000000
         self.label = devname.split("/")[-1]
