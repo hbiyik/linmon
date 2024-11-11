@@ -35,7 +35,7 @@ class ScaleMaxAttr(CpuFreqAttr):
 
 class ScaleMinAttr(CpuFreqAttr):
     name = "min"
-    path = "scale_min_freq"
+    path = "scaling_min_freq"
 
 
 class RelatedAttr(CpuFreqAttr):
@@ -94,8 +94,8 @@ class CpuSensor(Sensor):
 
 
 class CpuFreqColl(Collection):
-    sensors = [(CpuSensor, "freq", "cpuinfo_cur_freq", 1000, "Mhz", [InfoMinAttr, InfoMaxAttr, RelatedAttr, AffectedAttr], None),
-               (CpuSensor, "scaling_freq", "scaling_cur_freq", 1000, "Mhz", [ScaleMinAttr, ScaleMaxAttr, ScaleDrvAttr, ScaleAvailAttr], None),
+    sensors = [(CpuSensor, "freq", "cpuinfo_cur_freq", 1000, "Mhz", [InfoMinAttr, InfoMaxAttr], None),
+               (CpuSensor, "scaling_freq", "scaling_cur_freq", 1000, "Mhz", [ScaleMinAttr, ScaleMaxAttr, ScaleDrvAttr, ScaleAvailAttr, RelatedAttr, AffectedAttr], None),
                (CpuSensor, "governor", "scaling_governor", None, "", [AvaileGovsAttr], None)]
 
     def __init__(self, cores):
@@ -121,7 +121,7 @@ def Collections():
     cores = []
     for sub in os.listdir(cpu_dir):
         core_path = os.path.join(cpu_dir, sub, "cpufreq")
-        if os.path.exists(os.path.join(core_path, "cpuinfo_cur_freq")):
+        if os.path.exists(os.path.join(core_path, "scaling_cur_freq")):
             num = int(re.search("cpu([0-9]+)", sub).group(1))
             cores.append([sub, num, core_path])
     return [CpuFreqColl(cores)]
