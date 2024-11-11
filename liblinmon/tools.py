@@ -45,3 +45,22 @@ def iterdrivers(rootdir, rgx):
                 compatstr = parsefile(compat)
                 if re.search(rgx, compatstr):
                     yield subdir, compatstr
+
+
+def _parseuevent(path, rgx, trim=True):
+    uevent_path = os.path.join(path, "uevent")
+    if not os.path.exists(uevent_path):
+        return
+    uevent = parsefile(uevent_path, trim=trim)
+    devname = re.search(rgx, uevent)
+    if not devname:
+        return
+    return devname.group(1)
+
+
+def parseuevent_name(path):
+    return _parseuevent(path, r"OF_FULLNAME=(.+?)OF_COMPATIBLE")
+
+
+def parseuevent_driver(path):
+    return _parseuevent(path, r"DRIVER=(.+?)\n", False)
