@@ -119,6 +119,8 @@ class CpuFreqColl(Collection):
 
 def Collections():
     cores = []
+    if not os.path.exists(cpu_dir):
+        return cores
     for sub in os.listdir(cpu_dir):
         core_path = os.path.join(cpu_dir, sub, "cpufreq")
         if os.path.exists(os.path.join(core_path, "scaling_cur_freq")):

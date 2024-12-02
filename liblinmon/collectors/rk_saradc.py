@@ -74,6 +74,8 @@ class RkSaradc(Collection):
 
 def Collections():
     hwmons = []
+    if not os.path.exists(rootdir):
+        return hwmons
     for rksaradc, compat in tools.iterdrivers(rootdir, "r[kv][0-9]+.*?saradc"):
         hwmons.append(RkSaradc(rksaradc, compat))
     return sorted(hwmons, key=attrgetter("path"))

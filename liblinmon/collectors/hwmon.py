@@ -118,7 +118,7 @@ class Hwmon(Collection):
         # if vid, pid is found
         if len(ids) == 2:
             for pciid in tools.pciids:
-                rgx = "\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (ids[0], ids[1])
+                rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (ids[0], ids[1])
                 match = re.search(rgx, pciid, re.DOTALL)
                 if match:
                     Hwmon.hwnames[source] = "%s:%s" % (match.group(1), match.group(2))
@@ -151,6 +151,8 @@ class Hwmon(Collection):
 
 def Collections():
     hwmons = []
+    if not os.path.exists(hwmon_dir):
+        return hwmons
     for hwmon in os.listdir(hwmon_dir):
         hwmons.append(Hwmon(os.path.join(hwmon_dir, hwmon)))
     return sorted(hwmons, key=attrgetter("name"))

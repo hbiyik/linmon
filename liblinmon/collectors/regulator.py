@@ -109,6 +109,8 @@ class Reg_Collection(Collection):
         return "Regulators"
 
     def __iter__(self):
+        if not os.path.exists(regulator_dir):
+            return
         for regulator in os.listdir(regulator_dir):
             regulator = os.path.join(regulator_dir, regulator)
             regtype = tools.parsefile(os.path.join(regulator, "type"))

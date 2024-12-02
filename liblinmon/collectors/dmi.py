@@ -41,6 +41,8 @@ class DmiColl(Collection):
 
 def Collections():
     colls = []
+    if not os.path.exists(dmi_dir):
+        return colls
     for sub in os.listdir(dmi_dir):
         colls.append(DmiColl(sub))
     return colls

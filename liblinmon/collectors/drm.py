@@ -64,6 +64,8 @@ class i915Coll(Collection):
 
 def Collections():
     colls = []
+    if not os.path.exists(drm_dir):
+        return colls
     for sub in os.listdir(drm_dir):
         if "render" in sub:
             # skip render devices nothing to see here

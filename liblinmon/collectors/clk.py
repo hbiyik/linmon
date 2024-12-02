@@ -39,6 +39,9 @@ class ClkColl(Collection):
 
 
 def Collections():
+    colls = []
+    if not os.path.exists(platform_dir):
+        return colls
     if not clk_devices:
         for sub in os.listdir(platform_dir):
             clock_names = os.path.join(platform_dir, sub, "of_node", "clock-names")
@@ -46,7 +49,6 @@ def Collections():
                 clocks = tools.parsefile(clock_names, False).split("\x00")
                 if clocks:
                     clk_devices[sub] = clocks
-    colls = []
     for dev, clocks in clk_devices.items():
         colls.append(ClkColl(dev, clocks))
     return colls

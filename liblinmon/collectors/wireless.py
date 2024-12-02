@@ -83,6 +83,8 @@ class ProcWifiColl(Collection):
 
 def Collections():
     colls = []
+    if not os.path.exists(proc_wifi):
+        return colls
     for params in parseproc():
         colls.append(ProcWifiColl(params[0]))
     return colls

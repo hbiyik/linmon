@@ -106,6 +106,8 @@ class Devfreq(Collection):
 
 def Collections():
     colls = []
+    if not os.path.exists(devfreq_dir):
+        return colls
     for devfreq in os.listdir(devfreq_dir):
         colls.append(Devfreq(os.path.join(devfreq_dir, devfreq), devfreq))
     return colls
