@@ -75,6 +75,8 @@ class DevfreqSensor(Sensor):
 class LoadSensor(DevfreqSensor):
     def read(self):
         value = self.readfile(self.file, self.scale)
+        if not value:
+            return
         value = re.search("([0-9]+)@", value)
         if value:
             self.value = int(value.group(1))
