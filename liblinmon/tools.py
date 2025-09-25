@@ -14,6 +14,13 @@ for p in ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.ids"):
         pass
 
 
+def pcilookup(vendor, device):
+    for pciid in pciids:
+        rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (vendor, device)
+        match = re.search(rgx, pciid, re.DOTALL)
+        if match:
+            return match.group(1), match.group(2)
+
 def iterdirs(rootdir):
     for basedir, subdirs, files in os.walk(rootdir):
         for subdir in subdirs:

@@ -117,12 +117,10 @@ class Hwmon(Collection):
 
         # if vid, pid is found
         if len(ids) == 2:
-            for pciid in tools.pciids:
-                rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (ids[0], ids[1])
-                match = re.search(rgx, pciid, re.DOTALL)
-                if match:
-                    Hwmon.hwnames[source] = "%s:%s" % (match.group(1), match.group(2))
-                    return Hwmon.hwnames[source]
+            names = tools.pcilookup(*ids)
+            if names:
+                Hwmon.hwnames[source] = "%s:%s" % names
+                return Hwmon.hwnames[source]
             Hwmon.hwnames[source] = None
 
     def __iter__(self):
