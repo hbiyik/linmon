@@ -14,9 +14,13 @@ for db, paths in ((PCIIDDB, ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.i
     for p in paths:
         if not os.path.exists(p):
             continue
-        with open(p) as f:
+        with open(p, "rb") as f:
             vid = None
             for line in f.readlines():
+                try:
+                    line = line.decode()
+                except UnicodeDecodeError:
+                    continue
                 matchvid = re.search(r"(^[0-9a-f]{4,4})\s\s(.+?)\n", line)
                 if matchvid is not None:
                     vid = matchvid.group(1).lower()
