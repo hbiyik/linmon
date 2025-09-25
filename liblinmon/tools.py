@@ -6,30 +6,57 @@ Created on Mar 3, 2023
 import os
 import re
 
-pciids = []
-for p in ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.ids"):
-    try:
-        pciids.append(open(p).read())
-    except Exception:
-        pass
+PCIIDDB = {}
+USBIDDB = {}
+
+for db, paths in ((PCIIDDB, ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.ids")),
+                  (USBIDDB, ("/usr/share/misc/usb.ids", "/usr/share/hwdata/usb.ids"))):
+    for p in paths:
+        if not os.path.exists(p):
+            continue
+        with open(p) as f:
+            vid = None
+            for line in f.readlines():
+                matchvid = re.search(r"(^[0-9a-f]{4,4})\s\s(.+?)\n", line)
+                if matchvid is not None:
+                    vid = matchvid.group(1).lower()
+                    vname = matchvid.group(2)
+                    if vid not in db:
+                        db[vid] = [vname, {}]
+                    continue
+                if vid is None:
+                    continue
+                pidmatch = re.search(r"^\t([0-9a-f]{4,4})\s\s(.+?)\n", line)
+                if pidmatch is None:
+                    continue
+                pid = pidmatch.group(1).lower()
+                pname = pidmatch.group(2)
+                db[vid][1][pid] = pname
 
 
-def pcilookup(vendor, device):
+def buslookup(vendor, device, db):
     if vendor.startswith("0x"):
         vendor = vendor[2:]
     if device and device.startswith("0x"):
         device = device[2:]
-    for pciid in pciids:
-        if device:
-            rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (vendor, device)
-            match = re.search(rgx, pciid, re.DOTALL)
-            if match:
-                return match.group(1), match.group(2)
-        else:
-            rgx = r"\n%s\s\s(.+?)\n.+?\n" % vendor
-            match = re.search(rgx, pciid)
-            if match:
-                return match.group(1), None
+    vendor = vendor.lower()
+    if device is not None:
+        device = device.lower()
+    if vendor not in db:
+        return
+    if device is None:
+        return db[vendor][0], None
+    if device not in db[vendor][1]:
+        return
+    return db[vendor][0], db[vendor][1][device]
+
+
+def pcilookup(vendor, device):
+    return buslookup(vendor, device, PCIIDDB)
+
+
+def usblookup(vendor, device):
+    return buslookup(vendor, device, USBIDDB)
 
 
 def iterdirs(rootdir):

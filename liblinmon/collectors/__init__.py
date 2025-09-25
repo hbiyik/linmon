@@ -7,16 +7,15 @@ from . import cpufreq
 from . import drm
 from . import dmi
 from . import wireless
-from . import pci
+from . import bus
 
-registry = {
-    "hwmon": hwmon.Collections(),
-    "regulator": [regulator.Reg_Collection()],
-    "rksaradc": rk_saradc.Collections(),
-    "devfreq": devfreq.Collections(),
-    "cpufreq": cpufreq.Collections(),
-    "drm": drm.Collections(),
-    "dmi": dmi.Collections(),
-    "wireless": wireless.Collections(),
-    "pci": pci.Collections(),
-    }
+registry = {"hwmon": hwmon.Collections(),
+            "regulator": [regulator.Reg_Collection()],
+            "rksaradc": rk_saradc.Collections(),
+            "devfreq": devfreq.Collections(),
+            "cpufreq": cpufreq.Collections(),
+            "drm": drm.Collections(),
+            "dmi": dmi.Collections(),
+            "wireless": wireless.Collections(),
+            "bus": bus.Collections(),
+            }
