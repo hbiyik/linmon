@@ -17,7 +17,7 @@ PCIE_HUMAN = {"2.5": "PCIe 1.0",
               "32.0": "PCIe 5.0",
               "64.0": "PCIe 6.0",
               "128.0": "PCIe 7.0",}
-USB_RGX = r"([0-9]+)"
+USB_RGX = r"([0-9\.]+)"
 USB_HUMAN = {"1.5": "USB1.1LS",
              "12": "USB1.1HS",
              "480": "USB2.0",
