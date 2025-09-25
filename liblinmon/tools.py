@@ -15,11 +15,22 @@ for p in ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.ids"):
 
 
 def pcilookup(vendor, device):
+    if vendor.startswith("0x"):
+        vendor = vendor[2:]
+    if device and device.startswith("0x"):
+        device = device[2:]
     for pciid in pciids:
-        rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (vendor, device)
-        match = re.search(rgx, pciid, re.DOTALL)
-        if match:
-            return match.group(1), match.group(2)
+        if device:
+            rgx = r"\n%s\s\s(.+?)\n.+?\n\t%s\s\s(.+?)\n" % (vendor, device)
+            match = re.search(rgx, pciid, re.DOTALL)
+            if match:
+                return match.group(1), match.group(2)
+        else:
+            rgx = r"\n%s\s\s(.+?)\n.+?\n" % vendor
+            match = re.search(rgx, pciid)
+            if match:
+                return match.group(1), None
+
 
 def iterdirs(rootdir):
     for basedir, subdirs, files in os.walk(rootdir):

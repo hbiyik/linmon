@@ -7,6 +7,7 @@ from . import cpufreq
 from . import drm
 from . import dmi
 from . import wireless
+from . import pci
 
 registry = {
     "hwmon": hwmon.Collections(),
@@ -17,4 +18,5 @@ registry = {
     "drm": drm.Collections(),
     "dmi": dmi.Collections(),
     "wireless": wireless.Collections(),
+    "pci": pci.Collections(),
     }
