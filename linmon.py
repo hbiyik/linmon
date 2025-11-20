@@ -16,6 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  """
 import sys
+import inspect
 from liblinmon import collectors
 from liblinmon import tui
 
@@ -31,6 +32,8 @@ if False:
 def report(start=0, end=float("inf")):
     index = 0
     for colname, collections in collectors.registry.items():
+        if inspect.isgeneratorfunction(collections):
+            collections = collections()
         for collection in collections:
             sensors = list(collection)
             if sensors:

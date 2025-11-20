@@ -17,5 +17,5 @@ registry = {"hwmon": hwmon.Collections(),
             "drm": drm.Collections(),
             "dmi": dmi.Collections(),
             "wireless": wireless.Collections(),
-            "bus": bus.Collections(),
+            "bus": bus.Collections,
             }

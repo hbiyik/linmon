@@ -105,7 +105,6 @@ class BusColl(Collection):
 
 
 def Collections():
-    colls = []
     for bus in [PciBus, UsbBus]:
         if not os.path.exists(bus.rootdir):
             continue
@@ -129,6 +128,4 @@ def Collections():
             continue
 
         for vendor, devices in vendors.items():
-            colls.append(BusColl(bus, vendor, devices))
-
-    return colls
+            yield BusColl(bus, vendor, devices)
