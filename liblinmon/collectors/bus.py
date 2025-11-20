@@ -25,6 +25,10 @@ USB_HUMAN = {"1.5": "USB1.1LS",
              "10000": "USB3.0G2"}
 
 
+def human_power(val):
+    return int(re.sub("[^0-9]", "", val)) * 5 / 1000
+
+
 class PciBus:
     name = "pci"
     rootdir = "/sys/bus/pci/devices/"
@@ -32,10 +36,10 @@ class PciBus:
     vendorfile = "vendor"
     devicefile = "device"
     idlookup = tools.pcilookup
-    attrs = (("current_link_speed", "LaneSpeed", PCIE_RGX, PCIE_HUMAN),
-             ("current_link_width", "Lanes", None, None),
-             ("max_link_speed", "MaxLaneSpeed", PCIE_RGX, PCIE_HUMAN),
-             ("max_link_width","MaxLanes", None, None))
+    attrs = (("current_link_speed", "LaneSpeed", PCIE_RGX, PCIE_HUMAN, None),
+             ("current_link_width", "Lanes", None, None, None),
+             ("max_link_speed", "MaxLaneSpeed", PCIE_RGX, PCIE_HUMAN, None),
+             ("max_link_width","MaxLanes", None, None, None))
 
 
 class UsbBus(PciBus):
@@ -45,20 +49,29 @@ class UsbBus(PciBus):
     vendorfile = "idVendor"
     devicefile = "idProduct"
     idlookup = tools.usblookup
-    attrs = (("speed", "Speed", USB_RGX, USB_HUMAN),)
+    attrs = (("speed", "Speed", USB_RGX, USB_HUMAN, None),
+             ("bMaxPower", "MaxPower", None, human_power, "W"))
 
 
 class BusAttr(Attr):
-    def __init__(self, sensor, value, attr, name, rgx, human):
+    def __init__(self, sensor, value, attr, name, rgx, human, unit):
+        self._unit = unit
         self.sensor = sensor
         self.name = name or attr
-        self._value = self.human(value, rgx, human) if rgx and human else value
+        self._value = self.human(value, rgx, human) if human else value
+
+    @property
+    def unit(self):
+        return self._unit or ""
 
     def human(self, value, rgx, human):
-        match = re.search(rgx, value, re.IGNORECASE)
-        if match is None:
-            return value
-        return human.get(match.group(1), value)
+        if isinstance(rgx, str):
+            match = re.search(rgx, value, re.IGNORECASE)
+            if match is None:
+                return value
+            return human.get(match.group(1), value)
+        else:
+            return human(value)
 
     @property
     def value(self):
@@ -75,14 +88,14 @@ class BusSensor(Sensor):
             self.value = names[1]
         else:
             self.value = UNKNOWN
-        for attr, attrname, rgx, human in bus.attrs:
+        for attr, attrname, rgx, human, unit in bus.attrs:
             attrpath = os.path.join(basepath, attr)
             if not os.path.exists(attrpath):
                 continue
             attrval = tools.parsefile(attrpath)
             if not attrval:
                 continue
-            self.attrs.append(BusAttr(self, attrval, attr, attrname, rgx, human))
+            self.attrs.append(BusAttr(self, attrval, attr, attrname, rgx, human, unit))
 
 
 class BusColl(Collection):
