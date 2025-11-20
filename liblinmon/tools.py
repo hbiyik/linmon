@@ -39,6 +39,8 @@ for db, paths in ((PCIIDDB, ("/usr/share/misc/pci.ids", "/usr/share/hwdata/pci.i
 
 
 def buslookup(vendor, device, db):
+    if not vendor:
+        return
     if vendor.startswith("0x"):
         vendor = vendor[2:]
     if device and device.startswith("0x"):
